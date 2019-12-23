@@ -4,6 +4,8 @@ import smbus
 import time
 import cv2
 import logging
+import picamera
+import numpy as np
 
 
 # Start logger
@@ -13,7 +15,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 def configure_leds():
     i2c_bus = smbus.SMBus(1)
 
-    # Set the dimming control for all leds to 40, 
+    # Set the dimming control for all leds to 40,
     # 40x.28125=11.25 mA for each LED
     logging.debug("Set LED dimming control")
     for i in range(1, 8):
@@ -40,15 +42,27 @@ def leds_off():
     i2c_bus.write_byte_data(0x70, 0x00, 0x00)
 
 
-###[ Image processing
+###[ Acquire image
 def capture_image():
-    logging.info("Capturing image")
-    cap = cv2.VideoCapture(0)
-
-    if cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            logging.debug("Frame was read")
+    try:
+        with picamera.PiCamera() as camera:
+            logging.info("Setting camera settings, delay")
+            # v2: 3280x2464  3296x2464
+            camera.resolution = (3280, 2464)
+            
+            camera.start_preview()
+            
+            time.sleep(2)
+            
+            logging.info("Capturing image")
+            image = np.empty((2464, 3296, 3), dtype=np.uint8)
+            camera.capture(image, 'bgr')
+            
+            logging.info("Writing image")
+            cv2.imwrite("/var/www/html/full.jpg", image)
+    except:
+        logging.error("Camera not available")
+        quit(-1)
 
 
 def main():
