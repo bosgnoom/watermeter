@@ -20,7 +20,7 @@ import os
 #from skimage import data, color, exposure
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
-#from sklearn.externals import joblib
+from sklearn.externals import joblib
 #import skimage
 #import sklearn
 #import imageio
@@ -40,7 +40,7 @@ for digit in range(0, 10):
             training_digit_image = cv2.imread(training_directory + filename, 0)
             training_digit_image = cv2.resize(training_digit_image, (30,30))
             training_digit = training_digit_image.ravel()
-            cv2.imshow('image', training_digit)
+            #cv2.imshow('image', training_digit)
             #cv2.waitKey()
             #training_digit = color.rgb2gray(training_digit_image)
             #training_digit = scipy.misc.imresize(training_digit, (30, 30))
@@ -60,7 +60,7 @@ for digit in range(0, 10):
 # split the labled dataset into training / test sets
 X_train, X_test, y_train, y_test = train_test_split(
 	features_list, features_label,
-	test_size=0.33,
+	test_size=0.25,
 	random_state=42) # train using K-NN
 
 knn = KNeighborsClassifier(n_neighbors=3)
@@ -72,4 +72,4 @@ model_score = knn.score(X_test, y_test)
 print(model_score)
 #quit()
 # save trained model
-#joblib.dump(knn, 'knn_model.pkl')
+joblib.dump(knn, 'knn_model.pkl')

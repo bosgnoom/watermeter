@@ -7,6 +7,11 @@ import chromalog
 import picamera
 import numpy as np
 import cv2
+import datetime
+
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.externals import joblib
 
 
 # Start logger
@@ -259,6 +264,20 @@ def find_numbers(cimg):
     return figures
 
 
+def analyze_figures(figures):
+    knn = joblib.load('/home/pi/watermeter/knn_model.pkl')
+    waterstand=[]
+ 
+    for figure in figures:
+        predict = knn.predict(figure.reshape(1,-1))[0]
+        predict_proba = knn.predict_proba(figure.reshape(1,-1))
+        logger.debug("Best guess: {}, probability: {}".format(predict, predict_proba))
+        waterstand.append(np.array2string(predict))
+        cv2.imwrite("/var/www/html/watermeter/predicted/{}/{}.png".format(predict, time.time()), figure)
+    
+    return waterstand
+    
+    
 def main():
     logger.debug("Starting main loop")
     configure_leds()
@@ -271,6 +290,7 @@ def main():
     circle = find_circle(full_image)
     rotated = rotate_image(circle)
     figures = find_figures(rotated)
+    
 
     logger.debug("Main loop finished")
     
@@ -278,10 +298,12 @@ def main():
 def snel():
     figures = cv2.imread('/var/www/html/watermeter/013_figures.png')
     waterstand = find_numbers(figures)
+    numbers = analyze_figures(waterstand)
+    print(numbers)
     
     
 if __name__ == '__main__':
-    #main()
+    main()
     snel()
     
 
