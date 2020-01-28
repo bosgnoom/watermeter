@@ -8,6 +8,7 @@ import picamera
 import numpy as np
 import cv2
 import datetime
+import requests
 
 
 from sklearn.neighbors import KNeighborsClassifier
@@ -125,6 +126,7 @@ def find_circle(image):
     return roi  #cimg[y-r:y+r, x-r:x+r]
 
 
+###[ Rotate image ]################################
 def rotate_image(img):
     logger.info("Rotating image")
     
@@ -177,6 +179,7 @@ def rotate_image(img):
     return dst    #As color image
 
 
+###[ Find figures ]################################
 def find_figures(cimg):
     logger.info("Finding area of figures...")
     result = cimg.copy()
@@ -207,11 +210,11 @@ def find_figures(cimg):
     for cnt in contours:
         x,y,w,h = cv2.boundingRect(cnt)
         ratio = w/h
-        logger.debug("coords: {}, ratio: {}".format(
-            (x,y,w,h), ratio))
+        #logger.debug("coords: {}, ratio: {}".format(
+        #    (x,y,w,h), ratio))
         if ratio > 5 and y > 50:     # Filter on area of figures
             cv2.rectangle(cimg, (x,y), (x+w,y+h), (255,0,0),1)
-            roi = result[y+1: y+h-1, x+1:x+w-1]
+            roi = result[y+2: y+h-2, x+2:x+w-2]
     
     logger.debug("Writing contours image")
     cv2.imwrite('/var/www/html/watermeter/012_contours2.png', cimg)
@@ -220,6 +223,7 @@ def find_figures(cimg):
     return roi    # As color image
 
 
+###[ Find numbers ]################################
 def find_numbers(cimg):
     logger.info("Looking for numbers...")
     img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
@@ -228,10 +232,11 @@ def find_numbers(cimg):
     ret, thresh = cv2.threshold(
         img, 127, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     
-    kernel = np.ones((3,3), np.uint8)
+    kernel = np.ones((2,2), np.uint8)
     erode = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    #erode = cv2.erode(erode, kernel, iterations=1)
     image, contours, hierarchy  = cv2.findContours(
-        erode, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        erode, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     cv2.drawContours(cimg, contours, -1, (255,255,0), 1)
     cv2.imwrite('/var/www/html/watermeter/014_numbers.png', image)
@@ -241,9 +246,9 @@ def find_numbers(cimg):
     for cnt in contours:
         x,y,w,h = cv2.boundingRect(cnt)
         ratio = w/h
-        if (h > 10 and w > 10):
-            logger.debug("coords: {}, ratio: {:0.2f}".format(
-                (x,y,w,h), ratio))
+        if (h > 17):
+            #logger.debug("coords: {}, ratio: {:0.2f}".format(
+            #    (x,y,w,h), ratio))
             cv2.rectangle(cimg, (x+1,y+1), (x+w-1,y+h-1), (255,0,0),1)
             corners.append([x, y, w, h])
             
@@ -257,13 +262,14 @@ def find_numbers(cimg):
     figures = []
     for corner in corners:
         x,y,w,h = corner
-        roi = img[y: y+h, x:x+w]
+        roi = erode[y: y+h, x:x+w]
         figure = cv2.resize(roi, (30,30))
         figures.append(figure)
 
-    return figures
+    return figures, cimg
 
 
+###[ Detect numbers ]################################
 def analyze_figures(figures):
     knn = joblib.load('/home/pi/watermeter/knn_model.pkl')
     waterstand=[]
@@ -277,7 +283,8 @@ def analyze_figures(figures):
     
     return waterstand
     
-    
+   
+###[ MAIN LOOP ]################################   
 def main():
     logger.debug("Starting main loop")
     configure_leds()
@@ -291,20 +298,33 @@ def main():
     rotated = rotate_image(circle)
     figures = find_figures(rotated)
     
+    waterstand, cimg = find_numbers(figures)
+    numbers = analyze_figures(waterstand)
+
+    meterstand = ''.join(numbers)
+    
+    cv2.imwrite("/var/www/html/watermeter/predicted/{}-{}.png".format(
+        time.time(), meterstand), cimg)
+    
+    payload = {'type': 'command',
+        'param': 'udevice',
+        'idx': '13',
+        'svalue': meterstand,
+        }
+    r = requests.get('http://192.168.178.2:8080/json.htm', params=payload)
+    #print(r.url)
+    #print(r.text)
 
     logger.debug("Main loop finished")
     
 
 def snel():
-    figures = cv2.imread('/var/www/html/watermeter/013_figures.png')
-    waterstand = find_numbers(figures)
-    numbers = analyze_figures(waterstand)
-    print(numbers)
+    pass
     
     
 if __name__ == '__main__':
     main()
-    snel()
+    #snel()
     
 
 
