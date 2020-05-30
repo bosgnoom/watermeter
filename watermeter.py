@@ -10,7 +10,6 @@ import cv2
 import datetime
 import requests
 
-
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.externals import joblib
 
@@ -58,6 +57,7 @@ def capture_image():
             logger.info("Setting camera settings, delay")
             # v2: 3280x2464  3296x2464
             camera.resolution = (3280, 2464)
+            camera.exposure_mode = "verylong"
 
             camera.start_preview()
 
@@ -183,9 +183,7 @@ def rotate_image(img):
 def find_figures(cimg):
     logger.info("Finding area of figures...")
     result = cimg.copy()
-    
-    #logger.debug("Running pyrMeanShiftFiltering...")
-    #img = cv2.pyrMeanShiftFiltering(cimg, 25, 30)
+
     img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
     cv2.imwrite('/var/www/html/watermeter/008_meanshift.png', img)
     
@@ -234,7 +232,6 @@ def find_numbers(cimg):
     
     kernel = np.ones((2,2), np.uint8)
     erode = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    #erode = cv2.erode(erode, kernel, iterations=1)
     image, contours, hierarchy  = cv2.findContours(
         erode, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -247,8 +244,6 @@ def find_numbers(cimg):
         x,y,w,h = cv2.boundingRect(cnt)
         ratio = w/h
         if (h > 17):
-            #logger.debug("coords: {}, ratio: {:0.2f}".format(
-            #    (x,y,w,h), ratio))
             cv2.rectangle(cimg, (x+1,y+1), (x+w-1,y+h-1), (255,0,0),1)
             corners.append([x, y, w, h])
             
@@ -277,11 +272,16 @@ def analyze_figures(figures):
     for figure in figures:
         predict = knn.predict(figure.reshape(1,-1))[0]
         predict_proba = knn.predict_proba(figure.reshape(1,-1))
-        logger.debug("Best guess: {}, probability: {}".format(predict, predict_proba))
+
+        logger.debug("Best guess: {}, probability: {}".format(
+            predict, predict_proba))
+        if (max(predict_proba[0]) < 0.9):
+            cv2.imwrite("/var/www/html/watermeter/predicted/{}/{}.png".format(
+                predict, time.time()), figure)
+ 
         waterstand.append(np.array2string(predict))
-        cv2.imwrite("/var/www/html/watermeter/predicted/{}/{}.png".format(predict, time.time()), figure)
-    
-    return waterstand
+        
+    return ''.join(waterstand)
     
    
 ###[ MAIN LOOP ]################################   
@@ -301,17 +301,17 @@ def main():
     waterstand, cimg = find_numbers(figures)
     numbers = analyze_figures(waterstand)
 
-    meterstand = ''.join(numbers)
+    meterstand = float(numbers)/100.0
     
     cv2.imwrite("/var/www/html/watermeter/predicted/{}-{}.png".format(
         time.time(), meterstand), cimg)
     
     payload = {'type': 'command',
         'param': 'udevice',
-        'idx': '13',
+        'idx': '36',
         'svalue': meterstand,
         }
-    r = requests.get('http://192.168.178.2:8080/json.htm', params=payload)
+    r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
     #print(r.url)
     #print(r.text)
 
