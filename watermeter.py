@@ -71,12 +71,12 @@ def capture_image():
         logger.critical("Camera not available")
         quit(-1)
 
-    #logger.info("Writing full image")
-    #cv2.imwrite("/var/www/html/watermeter/001_full.png", image)
+    logger.info("Writing full image")
+    cv2.imwrite("/var/www/html/watermeter/001_full.png", image)
 
     logger.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #cv2.imwrite("/var/www/html/watermeter/002_gray.png", gray)
+    cv2.imwrite("/var/www/html/watermeter/002_gray.png", gray)
     
     return gray
 
@@ -112,8 +112,8 @@ def find_circle(image):
         # Draw the center of the circle
         cv2.circle(cimage, (i[0],i[1]), 2, (0,0,255), 3)
 
-    #logger.debug("Writing image")
-    #cv2.imwrite("/var/www/html/watermeter/003_circles.png", cimage)
+    logger.debug("Writing image")
+    cv2.imwrite("/var/www/html/watermeter/003_circles.png", cimage)
 
     logger.debug("Writing cropped image...")
     circle = circles[0, 0]      # Just take the first circle for cropping
