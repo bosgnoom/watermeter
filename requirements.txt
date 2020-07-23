@@ -1,0 +1,7 @@
+# To be installed by:
+#  pip install -r requirements.txt
+coloredlogs
+numpy
+opencv-python
+requests
+#sklearn

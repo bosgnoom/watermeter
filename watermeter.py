@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+"""
+    Original work. Will be edited in future
+"""
+
 import smbus
 import time
 import logging

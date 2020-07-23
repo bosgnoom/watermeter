@@ -8,24 +8,26 @@ import datetime
 import requests
 import urllib
 
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.externals import joblib
+#from sklearn.neighbors import KNeighborsClassifier
+#from sklearn.externals import joblib
 
 
 # Start logger
 logger = logging.getLogger()
 coloredlogs.install(level='DEBUG')
 
+logger.debug("OpenCV version: {}".format(cv2.__version__))
 
 ###[ Acquire image ]##########################################################
 def capture_image():
     try:
         logger.debug("Downloading image...")
-        response = urllib.urlopen('http://192.168.178.11/watermeter/002_gray.png')
-        image = np.asarray(bytearray(response.read()), dtype="uint8")
-        image = cv2.imdecode(image, cv2.IMREAD_GRAY)
+        response = requests.get('http://192.168.178.11/watermeter/002_gray.png')
+        image = np.asarray(bytearray(response.content), dtype="uint8")
+        image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)
+        cv2.imwrite("002_gray.png", image)
     except:
-        logger.critical("Camera not available")
+        logger.critical("Image not available...")
         quit(-1)
  
     return image
@@ -39,13 +41,19 @@ def find_circle(image):
     img = cv2.medianBlur(image, 5)
     
     logger.debug("Running HoughCircles")
-    circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 1, 20, 
-        param1=75, param2=200, minRadius=100, maxRadius=300)
+    circles = cv2.HoughCircles(
+        img,
+        cv2.HOUGH_GRADIENT,
+        1,
+        20,
+        minRadius=200,
+        maxRadius=300)
 
     logger.debug("Circles: {}".format(circles))
 
     # Capture this in a try... except, as sometimes no circles are detected. 
     # Quit program with critical error.
+    # TODO: convert into ... if circles is not None:
     try:
         circles = np.uint16(np.around(circles))
     except:
@@ -63,7 +71,7 @@ def find_circle(image):
         cv2.circle(cimage, (i[0],i[1]), 2, (0,0,255), 3)
 
     logger.debug("Writing image")
-    cv2.imwrite("/var/www/html/watermeter/003_circles.png", cimage)
+    cv2.imwrite("003_circles.png", cimage)
 
     logger.debug("Writing cropped image...")
     circle = circles[0, 0]      # Just take the first circle for cropping
@@ -71,7 +79,7 @@ def find_circle(image):
     y = circle[1]
     r = circle[2]
     roi = image[y-r:y+r, x-r:x+r]
-    cv2.imwrite("/var/www/html/watermeter/004_crop.png", roi)
+    cv2.imwrite("004_crop.png", roi)
 
     return roi  #cimg[y-r:y+r, x-r:x+r]
 
@@ -87,8 +95,8 @@ def rotate_image(img):
     img_gray = cv2.medianBlur(img, 5)
     
     logger.debug("Detecting edges")
-    edges = cv2.Canny(img_gray, 150, 300)  # Fiddle with these parameters
-    cv2.imwrite('/var/www/html/watermeter/005_edges.png', edges)
+    edges = cv2.Canny(img_gray, 100, 150)  # Fiddle with these parameters
+    cv2.imwrite('005_edges.png', edges)
     
     logger.debug("Running HoughLines")
     hoek = []
@@ -112,7 +120,7 @@ def rotate_image(img):
         cv2.line(img, (x1,y1), (x2,y2), (0,0,255), 1)
     
     logger.debug("Writing image with detected lines")
-    cv2.imwrite('/var/www/html/watermeter/006_lines.png', img)
+    cv2.imwrite('006_lines.png', img)
     logger.info("Averaged angle: {:0.2f}".format(np.mean(hoek)))
     
     logger.debug("Rotating image")
@@ -124,7 +132,7 @@ def rotate_image(img):
     dst = cv2.warpAffine(cimg, M, (cols, rows))
     
     logger.debug("Writing rotated image")
-    cv2.imwrite('/var/www/html/watermeter/007_rotated.png', dst)
+    cv2.imwrite('007_rotated.png', dst)
     
     return dst    #As color image
 
@@ -239,9 +247,10 @@ def main():
     logger.debug("Starting main loop")
 
     full_image = capture_image()
-
+    
     circle = find_circle(full_image)
     rotated = rotate_image(circle)
+    """
     figures = find_figures(rotated)
     
     waterstand, cimg = find_numbers(figures)
@@ -251,7 +260,7 @@ def main():
     
     cv2.imwrite("/var/www/html/watermeter/predicted/{}-{}.png".format(
         time.time(), meterstand), cimg)
-    
+    """
     logger.debug("Main loop finished")
     
 
