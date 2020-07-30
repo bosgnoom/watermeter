@@ -75,8 +75,8 @@ def capture_image():
         logger.critical("Camera not available")
         quit(-1)
 
-    logger.info("Writing full image")
-    cv2.imwrite("/var/www/html/watermeter/001_full.png", image)
+    #logger.info("Writing full image")
+    #cv2.imwrite("/var/www/html/watermeter/001_full.png", image)
 
     logger.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

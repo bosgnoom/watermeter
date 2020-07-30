@@ -1,7 +1,10 @@
 # To be installed by:
-#  pip install -r requirements.txt
+#  pip3 install -r requirements.txt --only-binary :all:   (for raspberry pi)
+#  
 coloredlogs
 numpy
-opencv-python
+opencv-python==4.1.0.25   # As the latest release has a bug? https://github.com/piwheels/packages/issues/59
 requests
-#sklearn
+scikit-learn==0.22
+joblib>=0.14
+picamera
