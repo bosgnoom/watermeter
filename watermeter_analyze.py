@@ -1,15 +1,26 @@
 #!/usr/bin/python3
 
+import logging
+import coloredlogs
+
 import time
-import coloredlogs, logging
+import datetime
+
 import numpy as np
 import cv2
-import datetime
+
 import requests
-import urllib
 
 #from sklearn.neighbors import KNeighborsClassifier
 #from sklearn.externals import joblib
+
+# CONSTANTS
+IMAGE_URL = 'http://192.168.178.11/watermeter/002_gray.png'
+WATERMETER_CIRCLE = [2085, 1216,  250]
+CANNY1 = 100
+CANNY2 = 150
+WATERMETER_ANGLE = 1.68
+WATERMETER_COORDS = [145,167,227,34]
 
 
 # Start logger
@@ -18,17 +29,14 @@ coloredlogs.install(level='DEBUG')
 
 logger.debug("OpenCV version: {}".format(cv2.__version__))
 
+
 ###[ Acquire image ]##########################################################
 def capture_image():
-    try:
-        logger.debug("Downloading image...")
-        response = requests.get('http://192.168.178.11/watermeter/002_gray.png')
-        image = np.asarray(bytearray(response.content), dtype="uint8")
-        image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)
-        cv2.imwrite("002_gray.png", image)
-    except:
-        logger.critical("Image not available...")
-        quit(-1)
+    logger.debug("Downloading image...")
+    response = requests.get(IMAGE_URL)
+    image = np.asarray(bytearray(response.content), dtype="uint8")
+    image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)
+    #cv2.imwrite("002_gray.png", image)
  
     return image
 
@@ -45,7 +53,7 @@ def find_circle(image):
         img,
         cv2.HOUGH_GRADIENT,
         1,
-        20,
+        50,
         minRadius=200,
         maxRadius=300)
 
@@ -81,11 +89,11 @@ def find_circle(image):
     roi = image[y-r:y+r, x-r:x+r]
     cv2.imwrite("004_crop.png", roi)
 
-    return roi  #cimg[y-r:y+r, x-r:x+r]
+    return roi
 
 
-###[ Rotate image ]################################
-def rotate_image(img):
+###[ Find angle and rotate image ]################################
+def find_angle(img):
     logger.info("Rotating image")
     
     logger.debug("Convert to color")
@@ -95,7 +103,7 @@ def rotate_image(img):
     img_gray = cv2.medianBlur(img, 5)
     
     logger.debug("Detecting edges")
-    edges = cv2.Canny(img_gray, 100, 150)  # Fiddle with these parameters
+    edges = cv2.Canny(img_gray, CANNY1, CANNY2)  # Fiddle with these parameters
     cv2.imwrite('005_edges.png', edges)
     
     logger.debug("Running HoughLines")
@@ -117,10 +125,10 @@ def rotate_image(img):
         #if 1 < theta < 2:
         hoek.append(theta)
 
-        cv2.line(img, (x1,y1), (x2,y2), (0,0,255), 1)
+        cv2.line(cimg, (x1,y1), (x2,y2), (0,0,255), 1)
     
     logger.debug("Writing image with detected lines")
-    cv2.imwrite('006_lines.png', img)
+    cv2.imwrite('006_lines.png', cimg)
     logger.info("Averaged angle: {:0.2f}".format(np.mean(hoek)))
     
     logger.debug("Rotating image")
@@ -129,10 +137,11 @@ def rotate_image(img):
         (cols/2, rows/2), 
         180.0*np.mean(hoek)/np.pi + 90,
         1)
-    dst = cv2.warpAffine(cimg, M, (cols, rows))
+    dst = cv2.warpAffine(img, M, (cols, rows))
+    cdst = cv2.warpAffine(cimg, M, (cols, rows))
     
     logger.debug("Writing rotated image")
-    cv2.imwrite('007_rotated.png', dst)
+    cv2.imwrite('007_rotated.png', cdst)
     
     return dst    #As color image
 
@@ -142,25 +151,33 @@ def find_figures(cimg):
     logger.info("Finding area of figures...")
     result = cimg.copy()
 
-    img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
-    cv2.imwrite('/var/www/html/watermeter/008_meanshift.png', img)
+    logger.debug("Amount of dimensions in image: {}".format(cimg.ndim))
+
+    if (cimg.ndim == 2):
+        # Grayscale image
+        img = cimg
+    else:
+        # Color image
+        img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
+
+    cv2.imwrite('008_meanshift.png', img)
     
     logger.debug("Running threshold...")
     img = cv2.medianBlur(img, 11)
     ret, thresh = cv2.threshold(img, 60, 255, cv2.THRESH_BINARY_INV)
-    cv2.imwrite('/var/www/html/watermeter/009_thresh.png', thresh)
+    cv2.imwrite('009_thresh.png', thresh)
     
     logger.debug("Running morphologyEx...")
     kernel = np.ones((20,20), np.uint8)
     thresh2 = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    cv2.imwrite('/var/www/html/watermeter/010_thresh2.png', thresh2)
+    cv2.imwrite('010_thresh2.png', thresh2)
     
     logger.debug("Finding contours")
-    image, contours, hierarchy  = cv2.findContours(
+    contours, hierarchy  = cv2.findContours(
         thresh2, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     
     cv2.drawContours(cimg, contours, -1, (255,255,0), 1)
-    cv2.imwrite('/var/www/html/watermeter/011_contours.png', cimg)
+    cv2.imwrite('011_contours.png', cimg)
     
     logger.debug("Drawing contours in image")
     for cnt in contours:
@@ -170,11 +187,13 @@ def find_figures(cimg):
         #    (x,y,w,h), ratio))
         if ratio > 5 and y > 50:     # Filter on area of figures
             cv2.rectangle(cimg, (x,y), (x+w,y+h), (255,0,0),1)
-            roi = result[y+2: y+h-2, x+2:x+w-2]
+            roi = result[y-2: y+h+2, x:x+w]
+            logger.debug('Width and height: {},{}'.format(w, h))
+            logger.info('Figure coordinates: [{},{},{},{}]'.format(x, y, w, h))
     
     logger.debug("Writing contours image")
-    cv2.imwrite('/var/www/html/watermeter/012_contours2.png', cimg)
-    cv2.imwrite('/var/www/html/watermeter/013_figures.png', roi)
+    cv2.imwrite('012_contours2.png', cimg)
+    cv2.imwrite('013_figures.png', roi)
     
     return roi    # As color image
 
@@ -182,6 +201,7 @@ def find_figures(cimg):
 ###[ Find numbers ]################################
 def find_numbers(cimg):
     logger.info("Looking for numbers...")
+
     img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
     
     logger.debug("Apply threshold and find contours")
@@ -194,7 +214,7 @@ def find_numbers(cimg):
         erode, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     cv2.drawContours(cimg, contours, -1, (255,255,0), 1)
-    cv2.imwrite('/var/www/html/watermeter/014_numbers.png', image)
+    cv2.imwrite('014_numbers.png', image)
 
     logger.debug("Draw contours on image")
     corners=[]
@@ -206,7 +226,7 @@ def find_numbers(cimg):
             corners.append([x, y, w, h])
             
     logger.debug("Writing image with contours")
-    cv2.imwrite('/var/www/html/watermeter/015_numbers_color.png', cimg)
+    cv2.imwrite('015_numbers_color.png', cimg)
             
     #Sort the corners from left-to-right
     corners.sort(key = lambda x:x[0])
@@ -241,18 +261,58 @@ def analyze_figures(figures):
         
     return ''.join(waterstand)
     
-   
+
+###[ CUT CIRCLE ]################################   
+def cut_circle(image, circle):
+    logger.debug("Cutting circle...")
+
+    x = circle[0]
+    y = circle[1]
+    r = circle[2]
+    roi = image[y-r:y+r, x-r:x+r]
+    
+    cv2.imwrite("004_crop.png", roi)
+
+    return roi    
+
+###[ ROTATE IMAGE ]###################################
+def rotate_image(img, angle):
+    logger.debug("Rotating image")
+    rows, cols = img.shape
+    M = cv2.getRotationMatrix2D(
+        (cols/2, rows/2), 
+        180.0*angle / np.pi + 90,
+        1)
+    dst = cv2.warpAffine(img, M, (cols, rows))
+    
+    logger.debug("Writing rotated image")
+    cv2.imwrite('007_rotated.png', dst)
+    
+    return dst
+
+###[ CUT FIGURES FROM IMAGE]####################
+def cut_figures(img, coords):
+    x,y,w,h = coords
+    roi = img[y-2: y+h+2, x:x+w]
+    cv2.imwrite('013_figures.png', roi)
+    
+    return roi
+    
 ###[ MAIN LOOP ]################################   
 def main():
     logger.debug("Starting main loop")
 
     full_image = capture_image()
     
-    circle = find_circle(full_image)
-    rotated = rotate_image(circle)
-    """
-    figures = find_figures(rotated)
+    #circle = find_circle(full_image)
+    circle = cut_circle(full_image, WATERMETER_CIRCLE)
+
+    #rotated = find_angle(circle)
+    rotated = rotate_image(circle, WATERMETER_ANGLE)
     
+    #figures = find_figures(rotated)
+    figures = cut_figures(rotated, WATERMETER_COORDS)
+    """
     waterstand, cimg = find_numbers(figures)
     numbers = analyze_figures(waterstand)
 
