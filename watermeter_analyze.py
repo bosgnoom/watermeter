@@ -202,7 +202,12 @@ def find_figures(cimg):
 def find_numbers(cimg):
     logger.info("Looking for numbers...")
 
-    img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
+    if (cimg.ndim == 2):
+        # Grayscale image
+        img = cimg
+    else:
+        # Color image
+        img = cv2.cvtColor(cimg, cv2.COLOR_BGR2GRAY)
     
     logger.debug("Apply threshold and find contours")
     ret, thresh = cv2.threshold(
@@ -210,11 +215,11 @@ def find_numbers(cimg):
     
     kernel = np.ones((2,2), np.uint8)
     erode = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    image, contours, hierarchy  = cv2.findContours(
+    contours, hierarchy  = cv2.findContours(
         erode, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     cv2.drawContours(cimg, contours, -1, (255,255,0), 1)
-    cv2.imwrite('014_numbers.png', image)
+    #cv2.imwrite('014_numbers.png', image)
 
     logger.debug("Draw contours on image")
     corners=[]
@@ -290,12 +295,21 @@ def rotate_image(img, angle):
     
     return dst
 
-###[ CUT FIGURES FROM IMAGE]####################
+###[ CUT FIGURES FROM IMAGE ]####################
 def cut_figures(img, coords):
     x,y,w,h = coords
-    roi = img[y-2: y+h+2, x:x+w]
+    roi = img[y-2: y+h-2, x:x+w]
     cv2.imwrite('013_figures.png', roi)
-    
+
+    # Manual detection of figures in x-direction:
+    # 33, 66, 96, 128, 155, 190, 220
+    for i in range(0, 7):
+        #print(31*i+3)
+        location = 31*i+3
+        figure = roi[0: h-2, location:location+31]
+        resized = cv2.resize(figure, (30,30))
+        cv2.imwrite('new/{}_{}.png'.format(int(time.time()), i), resized)
+
     return roi
     
 ###[ MAIN LOOP ]################################   
@@ -314,6 +328,7 @@ def main():
     figures = cut_figures(rotated, WATERMETER_COORDS)
     """
     waterstand, cimg = find_numbers(figures)
+    
     numbers = analyze_figures(waterstand)
 
     meterstand = float(numbers)/100.0
