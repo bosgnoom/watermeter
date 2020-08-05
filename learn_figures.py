@@ -34,7 +34,7 @@ features_label = []
 for digit in range(0, 10):
     print("Reading number: {}".format(digit))
     label = digit
-    training_directory = str(label) + '/'
+    training_directory = 'learn/' + str(label) + '/'
     for filename in os.listdir(training_directory):
         if (filename.endswith('.png')):
             training_digit_image = cv2.imread(training_directory + filename, 0)
@@ -72,4 +72,4 @@ model_score = knn.score(X_test, y_test)
 print(model_score)
 #quit()
 # save trained model
-joblib.dump(knn, 'knn_model.pkl')
+joblib.dump(knn, 'knn_model_2.pkl')

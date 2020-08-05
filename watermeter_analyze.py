@@ -11,8 +11,8 @@ import cv2
 
 import requests
 
-#from sklearn.neighbors import KNeighborsClassifier
-#from sklearn.externals import joblib
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.externals import joblib
 
 # CONSTANTS
 IMAGE_URL = 'http://192.168.178.11/watermeter/002_gray.png'
@@ -249,7 +249,7 @@ def find_numbers(cimg):
 
 ###[ Detect numbers ]################################
 def analyze_figures(figures):
-    knn = joblib.load('/home/pi/watermeter/knn_model.pkl')
+    knn = joblib.load('knn_model_2.pkl')
     waterstand=[]
  
     for figure in figures:
@@ -259,7 +259,7 @@ def analyze_figures(figures):
         logger.debug("Best guess: {}, probability: {}".format(
             predict, predict_proba))
         if (max(predict_proba[0]) < 0.9):
-            cv2.imwrite("/var/www/html/watermeter/predicted/{}/{}.png".format(
+            cv2.imwrite("predicted/{}/{}.png".format(
                 predict, time.time()), figure)
  
         waterstand.append(np.array2string(predict))
@@ -303,14 +303,16 @@ def cut_figures(img, coords):
 
     # Manual detection of figures in x-direction:
     # 33, 66, 96, 128, 155, 190, 220
+    figures = []
     for i in range(0, 7):
         #print(31*i+3)
         location = 31*i+3
         figure = roi[0: h-2, location:location+31]
         resized = cv2.resize(figure, (30,30))
+        figures.append(resized)
         cv2.imwrite('new/{}_{}.png'.format(int(time.time()), i), resized)
 
-    return roi
+    return figures
     
 ###[ MAIN LOOP ]################################   
 def main():
@@ -326,16 +328,25 @@ def main():
     
     #figures = find_figures(rotated)
     figures = cut_figures(rotated, WATERMETER_COORDS)
-    """
-    waterstand, cimg = find_numbers(figures)
     
-    numbers = analyze_figures(waterstand)
+    
+    numbers = analyze_figures(figures)
 
     meterstand = float(numbers)/100.0
-    
+
+    logger.info("Meterstand: {}".format(meterstand))
+    """    
     cv2.imwrite("/var/www/html/watermeter/predicted/{}-{}.png".format(
         time.time(), meterstand), cimg)
     """
+
+    payload = {'type': 'command',
+        'param': 'udevice',
+        'idx': '36',
+        'svalue': meterstand,
+        }
+    r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
+
     logger.debug("Main loop finished")
     
 
