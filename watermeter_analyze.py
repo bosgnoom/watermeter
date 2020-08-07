@@ -249,7 +249,7 @@ def find_numbers(cimg):
 
 ###[ Detect numbers ]################################
 def analyze_figures(figures):
-    knn = joblib.load('knn_model_2.pkl')
+    knn = joblib.load('/home/pi/watermeter/knn_model_2.pkl')
     waterstand=[]
  
     for figure in figures:
