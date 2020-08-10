@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 
 https://towardsdatascience.com/scanned-digits-recognition-using-k-nearest-neighbor-k-nn-d1a1528f0dea

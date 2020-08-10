@@ -15,8 +15,8 @@ import datetime
 import requests
 
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.externals import joblib
-
+#from sklearn.externals import joblib
+import joblib
 
 # Start logger
 chromalog.basicConfig(format='%(message)s', level=logging.CRITICAL)

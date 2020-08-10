@@ -260,7 +260,7 @@ def analyze_figures(figures):
         logger.debug("Best guess: {}, probability: {}".format(
             predict, predict_proba))
         if (max(predict_proba[0]) < 0.95):
-            cv2.imwrite("/home/pi/watermeter/unknown/{}-{}.png".format(
+            cv2.imwrite("/home/pi/watermeter/learn/{}-{}.png".format(
                 predict, time.time()), figure)
 
         waterstand.append(np.array2string(predict))
@@ -277,7 +277,7 @@ def cut_circle(image, circle):
     r = circle[2]
     roi = image[y-r:y+r, x-r:x+r]
     
-    cv2.imwrite("004_crop.png", roi)
+    cv2.imwrite("/var/www/html/watermeter/004_crop.png", roi)
 
     return roi    
 
@@ -292,7 +292,7 @@ def rotate_image(img, angle):
     dst = cv2.warpAffine(img, M, (cols, rows))
     
     logger.debug("Writing rotated image")
-    cv2.imwrite('007_rotated.png', dst)
+    cv2.imwrite('/var/www/html/watermeter/007_rotated.png', dst)
     
     return dst
 
@@ -300,7 +300,7 @@ def rotate_image(img, angle):
 def cut_figures(img, coords):
     x,y,w,h = coords
     roi = img[y-2: y+h-2, x:x+w]
-    cv2.imwrite('013_figures.png', roi)
+    cv2.imwrite('/var/www/html/watermeter/013_figures.png', roi)
 
     # Manual detection of figures in x-direction:
     # 33, 66, 96, 128, 155, 190, 220
@@ -311,7 +311,7 @@ def cut_figures(img, coords):
         figure = roi[0: h-2, location:location+31]
         resized = cv2.resize(figure, (30,30))
         figures.append(resized)
-        cv2.imwrite('new/{}_{}.png'.format(int(time.time()), i), resized)
+        #cv2.imwrite('new/{}_{}.png'.format(int(time.time()), i), resized)
 
     return figures
     
