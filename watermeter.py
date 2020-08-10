@@ -19,7 +19,7 @@ from sklearn.externals import joblib
 
 
 # Start logger
-chromalog.basicConfig(format='%(message)s', level=logging.DEBUG)
+chromalog.basicConfig(format='%(message)s', level=logging.CRITICAL)
 logger = logging.getLogger()
 
 
@@ -58,7 +58,7 @@ def leds_off():
 def capture_image():
     try:
         with picamera.PiCamera() as camera:
-            logger.info("Setting camera settings, delay")
+            logger.debug("Setting camera settings, delay")
             # v2: 3280x2464  3296x2464
             camera.resolution = (3280, 2464)
             camera.exposure_mode = "verylong"
@@ -67,7 +67,7 @@ def capture_image():
 
             time.sleep(5)
 
-            logger.info("... delay done, Capturing image")
+            logger.debug("... delay done, Capturing image")
             image = np.empty((2464, 3296, 3), dtype=np.uint8)
             camera.capture(image, 'bgr')
 
@@ -81,7 +81,7 @@ def capture_image():
     logger.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("/var/www/html/watermeter/002_gray.png", gray)
-    
+
     return gray
 
 
@@ -323,13 +323,18 @@ def main():
     
 
 def snel():
-    pass
-    
-    
+    logger.debug("Starting short loop")
+
+    configure_leds()
+    leds_on()
+
+    full_image = capture_image()
+
+    leds_off()
+
 if __name__ == '__main__':
-    main()
-    #snel()
-    
+    #main()
+    snel()
 
 
 

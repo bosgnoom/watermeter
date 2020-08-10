@@ -12,7 +12,8 @@ import cv2
 import requests
 
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.externals import joblib
+#from sklearn.externals import joblib
+import joblib
 
 # CONSTANTS
 IMAGE_URL = 'http://192.168.178.11/watermeter/002_gray.png'
@@ -25,7 +26,7 @@ WATERMETER_COORDS = [145,167,227,34]
 
 # Start logger
 logger = logging.getLogger()
-coloredlogs.install(level='DEBUG')
+coloredlogs.install(level='CRITICAL') #DEBUG')
 
 logger.debug("OpenCV version: {}".format(cv2.__version__))
 
@@ -251,21 +252,21 @@ def find_numbers(cimg):
 def analyze_figures(figures):
     knn = joblib.load('/home/pi/watermeter/knn_model_2.pkl')
     waterstand=[]
- 
+
     for figure in figures:
         predict = knn.predict(figure.reshape(1,-1))[0]
         predict_proba = knn.predict_proba(figure.reshape(1,-1))
 
         logger.debug("Best guess: {}, probability: {}".format(
             predict, predict_proba))
-        if (max(predict_proba[0]) < 0.9):
-            cv2.imwrite("predicted/{}/{}.png".format(
+        if (max(predict_proba[0]) < 0.95):
+            cv2.imwrite("/home/pi/watermeter/unknown/{}-{}.png".format(
                 predict, time.time()), figure)
- 
+
         waterstand.append(np.array2string(predict))
-        
+
     return ''.join(waterstand)
-    
+
 
 ###[ CUT CIRCLE ]################################   
 def cut_circle(image, circle):

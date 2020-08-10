@@ -20,7 +20,8 @@ import os
 #from skimage import data, color, exposure
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.externals import joblib
+#from sklearn.externals import joblib
+import joblib
 #import skimage
 #import sklearn
 #import imageio
