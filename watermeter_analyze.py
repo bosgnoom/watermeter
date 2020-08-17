@@ -27,6 +27,7 @@ WATERMETER_COORDS = [145,167,227,34]
 # Start logger
 logger = logging.getLogger()
 coloredlogs.install(level='CRITICAL') #DEBUG')
+coloredlogs.install(level='DEBUG')
 
 logger.debug("OpenCV version: {}".format(cv2.__version__))
 

@@ -62,10 +62,10 @@ for digit in range(0, 10):
 # split the labled dataset into training / test sets
 X_train, X_test, y_train, y_test = train_test_split(
 	features_list, features_label,
-	test_size=0.25,
+	test_size=0.01,
 	random_state=42) # train using K-NN
 
-knn = KNeighborsClassifier(n_neighbors=3)
+knn = KNeighborsClassifier(n_neighbors=5)
 
 knn.fit(X_train, y_train)# get the model accuracy
 
