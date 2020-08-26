@@ -16,7 +16,7 @@ from sklearn.neighbors import KNeighborsClassifier
 import joblib
 
 # CONSTANTS
-IMAGE_URL = 'http://192.168.178.11/watermeter/002_gray.png'
+IMAGE_URL = 'http://192.168.178.11/watermeter/watermeter.png'
 WATERMETER_CIRCLE = [2085, 1216,  250]
 CANNY1 = 100
 CANNY2 = 150
