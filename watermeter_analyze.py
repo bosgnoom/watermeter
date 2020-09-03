@@ -1,8 +1,12 @@
 #!/usr/bin/python3
 """
     Uses photo of watermeter,
-    tries to detect meter centre and
+    download from source,
+    tries to detect meter center,
+    rotation and
     location of the figures
+
+    Writes information into configfile.ini
 """
 
 import logging
@@ -16,10 +20,7 @@ import cv2
 
 import requests
 
-# CONSTANTS
-IMAGE_URL = 'http://192.168.178.11/watermeter/watermeter.png'
-CANNY1 = 100
-CANNY2 = 150
+import configparser
 
 
 # Start logger
@@ -31,17 +32,17 @@ logger.debug("OpenCV version: {}".format(cv2.__version__))
 
 
 ###[ Acquire image ]##########################################################
-def download_image():
+def download_image(image_url):
     logger.debug("Downloading image...")
 
-    response = requests.get(IMAGE_URL)
+    response = requests.get(image_url)
     image = np.asarray(bytearray(response.content), dtype="uint8")
     image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)
  
     return image
 
 
-###[ Find circles ]################################
+###[ Find circles ]###########################################################
 def find_circle(image):
     logger.info("Looking for circles")
 
@@ -89,11 +90,12 @@ def find_circle(image):
     roi = image[y-r:y+r, x-r:x+r]
     cv2.imwrite("/var/www/html/watermeter/004_crop.png", roi)
 
-    return roi
+    # Return the coordinates of the circle and the processed image
+    return ','.join([str(i) for i in [x, y, r]]), roi
 
 
-###[ Find angle and rotate image ]################################
-def find_angle(img):
+###[ Find angle and rotate image ]############################################
+def find_angle(img, CANNY1, CANNY2):
     logger.info("Rotating image")
     
     logger.debug("Convert to color")
@@ -103,7 +105,7 @@ def find_angle(img):
     img_gray = cv2.medianBlur(img, 5)
     
     logger.debug("Detecting edges")
-    edges = cv2.Canny(img_gray, CANNY1, CANNY2)  # Fiddle with these parameters
+    edges = cv2.Canny(img_gray, int(CANNY1), int(CANNY2))  # Fiddle with these parameters
     cv2.imwrite('/var/www/html/watermeter/005_edges.png', edges)
     
     logger.debug("Running HoughLines")
@@ -143,10 +145,10 @@ def find_angle(img):
     logger.debug("Writing rotated image")
     cv2.imwrite('/var/www/html/watermeter/007_rotated.png', cdst)
     
-    return dst    #As color image
+    return str(np.mean(hoek)), dst    # As color image
 
 
-###[ Find figures ]################################
+###[ Find figures ]###########################################################
 def find_figures(cimg):
     logger.info("Finding area of figures...")
     result = cimg.copy()
@@ -180,33 +182,59 @@ def find_figures(cimg):
     cv2.imwrite('/var/www/html/watermeter/011_contours.png', cimg)
     
     logger.debug("Drawing contours in image")
+    coords = []
+
     for cnt in contours:
         x,y,w,h = cv2.boundingRect(cnt)
         ratio = w/h
-        #logger.debug("coords: {}, ratio: {}".format(
-        #    (x,y,w,h), ratio))
+
         if ratio > 5 and y > 50:     # Filter on area of figures
             cv2.rectangle(cimg, (x,y), (x+w,y+h), (255,0,0),1)
             roi = result[y-2: y+h+2, x:x+w]
             logger.debug('Width and height: {},{}'.format(w, h))
             logger.info('Figure coordinates: [{},{},{},{}]'.format(x, y, w, h))
+            coords = ','.join([str(i) for i in [x, y, w, h]])
     
     logger.debug("Writing contours image")
     cv2.imwrite('/var/www/html/watermeter/012_contours2.png', cimg)
     cv2.imwrite('/var/www/html/watermeter/figures.png', roi)
     
-    return roi    # As color image
+    return coords, roi    # As color image
 
 
-###[ MAIN LOOP ]################################   
+###[ MAIN LOOP ]##############################################################   
 def main():
     logger.debug("Starting main loop")
 
-    full_image = download_image()
+    logger.debug("Loading config file...")
+    config = configparser.ConfigParser()
+    parser = config.read('watermeter.ini')
+
+    if not parser:
+        logger.error('Config file not found, using defaults...')
+        config['watermeter'] = {}
+        config['watermeter']['image_url'] = 'http://192.168.178.11/watermeter/watermeter.png'
+        config['watermeter']['CANNY1'] = '100'
+        config['watermeter']['CANNY2'] = '150'
+
+    logger.debug(f'Parser: {parser}')
+
+    logger.debug('Downloading full image...')
+    full_image = download_image(config['watermeter']['image_url'])
     
-    circle = find_circle(full_image)
-    rotated = find_angle(circle)
-    figures = find_figures(rotated)
+    logger.debug('Looking for circles...')
+    config['watermeter']['coordinates'], circle = find_circle(full_image)
+
+    config['watermeter']['angle'], rotated = find_angle(
+        circle, 
+        config['watermeter']['CANNY1'],
+        config['watermeter']['CANNY2'])
+    
+    config['watermeter']['figures'], figures = find_figures(rotated)
+
+    logger.debug('Writing config file...')
+    with open('watermeter.ini', 'w') as configfile:
+        config.write(configfile)
     
     logger.debug("Main loop finished")
     
@@ -214,9 +242,3 @@ def main():
 if __name__ == '__main__':
     main()
     
-
-
-
-
-
-
