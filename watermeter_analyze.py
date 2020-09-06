@@ -205,6 +205,8 @@ def find_figures(cimg):
 ###[ MAIN LOOP ]##############################################################   
 def main():
     logger.debug("Starting main loop")
+    # Loads config parameters from ini file
+    # Configparser is referred to directly. No idea whether this is good programming...
 
     logger.debug("Loading config file...")
     config = configparser.ConfigParser()
@@ -219,19 +221,24 @@ def main():
 
     logger.debug(f'Parser: {parser}')
 
+    # First, get image, to be processed
     logger.debug('Downloading full image...')
     full_image = download_image(config['watermeter']['image_url'])
     
+    # Second, look for circles (gauge)
     logger.debug('Looking for circles...')
     config['watermeter']['coordinates'], circle = find_circle(full_image)
 
+    # Rotate figures into view
     config['watermeter']['angle'], rotated = find_angle(
         circle, 
         config['watermeter']['CANNY1'],
         config['watermeter']['CANNY2'])
     
+    # Find and cut figures from gauge
     config['watermeter']['figures'], figures = find_figures(rotated)
 
+    # Save config file
     logger.debug('Writing config file...')
     with open('watermeter.ini', 'w') as configfile:
         config.write(configfile)
