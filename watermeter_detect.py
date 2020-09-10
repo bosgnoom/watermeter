@@ -127,7 +127,7 @@ def push_data(meterstand):
 
 
 ###[ MAIN LOOP ]##############################################################
-def main():
+def detect():
     logger.debug("Starting main loop")
 
     logger.debug('Loading config file')
@@ -172,4 +172,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    detect()

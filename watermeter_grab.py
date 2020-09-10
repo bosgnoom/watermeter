@@ -7,18 +7,16 @@
 import smbus
 import time
 import logging
-import chromalog
+import coloredlogs
 import picamera
 import numpy as np
 import cv2
-#from cv2 import cvtColor
 import datetime
 import requests
 
 
 ###[] Start logger ]#########################################################
-#chromalog.basicConfig(format='%(message)s', level=logging.CRITICAL)
-chromalog.basicConfig(format='%(message)s', level=logging.DEBUG)
+coloredlogs.install(level='DEBUG')
 logger = logging.getLogger()
 
 
@@ -100,7 +98,3 @@ def grab_image():
     
 if __name__ == '__main__':
     grab_image()
-
-
-
-
