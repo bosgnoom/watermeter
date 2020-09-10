@@ -132,7 +132,7 @@ def detect():
 
     logger.debug('Loading config file')
     config = configparser.ConfigParser()
-    parser = config.read('watermeter.ini')
+    parser = config.read('/home/pi/watermeter/watermeter.ini')
 
     logger.debug('Check if config file is read')
     if not parser:
