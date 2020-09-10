@@ -218,6 +218,7 @@ def main():
         config['watermeter']['image_url'] = 'http://192.168.178.11/watermeter/watermeter.png'
         config['watermeter']['CANNY1'] = '100'
         config['watermeter']['CANNY2'] = '150'
+        config['watermeter']['amount'] = '7'
 
     logger.debug(f'Parser: {parser}')
 
