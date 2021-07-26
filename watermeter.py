@@ -42,7 +42,7 @@ def leds_on():
     i2c_bus = smbus.SMBus(1)
 
     #Switch all (outer) LEDs on
-    logging.info("Switching LEDs on")
+    logging.debug("Switching LEDs on")
     i2c_bus.write_byte_data(0x70, 0x00, 0xFF)
 
 
@@ -50,7 +50,7 @@ def leds_off():
     i2c_bus = smbus.SMBus(1)
 
     #Switchs all LEDs off
-    logging.info("Switching LEDs off")
+    logging.debug("Switching LEDs off")
     i2c_bus.write_byte_data(0x70, 0x00, 0x00)
 
 
@@ -80,7 +80,7 @@ def capture_image():
 
     logging.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #cv2.imwrite("/var/www/html/watermeter.png", gray)
+    cv2.imwrite("/var/www/html/watermeter.png", image)
 
     return gray 
 
@@ -274,6 +274,12 @@ def push_to_domoticz(meterstand):
                'svalue': '{:7.2f}'.format(meterstand),
                }
     r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
+    payload = {'type': 'command',
+               'param': 'udevice',
+               'idx': '43',
+               'svalue': '{:7.2f}'.format(meterstand),
+               }
+    r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
 
 
 ###[ Main loop ]################################################################   
@@ -307,10 +313,14 @@ if __name__ == '__main__':
         logging.getLogger().setLevel(logging.CRITICAL)
     
     if not(args.measure):
+        logging.info("Grabbing picture from camera")
         img = grab_image()
+        logging.info("Converting picture")
         get_watermeter_numbers(img)
         
+    logging.info("Analyzing picture")
     meterstand = analyse_figures()
     
     if validate(meterstand, args.override):
+        logging.info("Pushing value to Domoticz")
         push_to_domoticz(meterstand)
