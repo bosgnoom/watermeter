@@ -17,13 +17,13 @@ import requests
 import os
 
 
-###[ Start logger ]############################################################
+###[ Start logger ]#############################################################
 # Logging, normal logging is CRITICAL
 LOGLEVEL = logging.DEBUG
 logging.basicConfig(level=LOGLEVEL)
 
 
-###[ LED control ]#############################################################
+###[ LED control ]##############################################################
 def configure_leds():
     i2c_bus = smbus.SMBus(1)
 
@@ -54,7 +54,7 @@ def leds_off():
     i2c_bus.write_byte_data(0x70, 0x00, 0x00)
 
 
-###[ Acquire image ]###########################################################
+###[ Acquire image ]############################################################
 def capture_image():
     try:
         logging.debug("Setting camera settings")
@@ -85,7 +85,7 @@ def capture_image():
     return gray 
 
 
-###[ Grab image from camera ]#################################################
+###[ Grab image from camera ]##################################################
 def grab_image():
     logging.debug("Grab image from camera")
 
@@ -97,7 +97,7 @@ def grab_image():
     return full_image
 
 
-###[ Cut numbers from image ]#################################################
+###[ Cut numbers from image ]###################################################
 def get_watermeter_numbers(img):
     # Process image:
     # - Cut ROI
@@ -146,7 +146,12 @@ def get_watermeter_numbers(img):
         region = [int(j) for j in roi.split(',')]
         
         roi = otsu_rot[region[1]:region[3], region[0]:region[2]]
-        cv2.rectangle(otsu_color, (region[0],region[1]), (region[2],region[3]), (0,0,255), 1)
+        cv2.rectangle(
+            otsu_color, 
+            (region[0],region[1]), 
+            (region[2],region[3]), 
+            (0,0,255), 
+            1)
         
         fig = cv2.resize(roi, (25, 25))
 
@@ -156,16 +161,17 @@ def get_watermeter_numbers(img):
     cv2.imwrite('/var/www/html/rotated-roi.png', otsu_color)
 
 
-###[ Analyse figures to number ]##############################################
+###[ Analyse figures to number ]################################################
 def analyse_figures():
     # Read numbers,
     # process through template matching
     # calculate watermeter value
     
-    # Keep track of the maximum score and corresponding number
-    max_score = [0] * 7
     # Start with 0000000
     prediction = [0] * 7
+    
+    # Keep track of the maximum score
+    max_score = [0] * 7
     
     # Load figures to be analyzed, minimize disk load
     figures = []
@@ -180,37 +186,46 @@ def analyse_figures():
             # Only process png files
             if (filename.endswith('.png')):
                 # Load template image
-                template = cv2.imread('/home/pi/watermeter/{}/{}'.format(j, filename), 0)
+                template = cv2.imread(
+                    '/home/pi/watermeter/{}/{}'.format(j, filename), 0)
                 
                 # Match template against each pre-loaded figure
                 for i in range(7):
-                    res = cv2.matchTemplate(figures[i], template, cv2.TM_CCOEFF_NORMED)
+                    res = cv2.matchTemplate(
+                        figures[i], 
+                        template, 
+                        cv2.TM_CCOEFF_NORMED)
+                    # Normalize res to score (plain float value)
                     score = res[0][0]
                     
-                    # If score's better than before, store it
+                    # If score's better than before, store it and
+                    # update figure
                     if score > max_score[i]:
                         max_score[i] = score
                         prediction[i] = j
 
-    logging.debug('Scores: {}'.format(max_score))
     logging.debug('Prediction : {}'.format(prediction))
-    
+    logging.debug('Scores: {}'.format(max_score))
+        
     # Convert list into number,
     # Also check for bad matched numbers
     meterstand = 0.0
     for i in range(7):
         meterstand = meterstand + prediction[i] * 10 ** (4-i)
-        if max_score[i] < 0.5:
+        if max_score[i] < 0.9:
             # No good figure found, save it for analysis
             logging.warning('Bad matched figure found, saving for analysis...')
-            cv2.imwrite('/home/pi/watermeter/learn/{}-{}.png'.format(int(time.time()), i), figures[i])
+            cv2.imwrite(
+                '/home/pi/watermeter/learn/{}-{}.png'.format(
+                    int(time.time()), i), 
+                    figures[i])
     
     logging.debug('Meterstand: {:7.2f}'.format(meterstand))
 
     return meterstand
 
 
-###[ Validate  reading ]######################################################   
+###[ Validate  reading ]########################################################   
 def validate(meterstand, forced):
     # Check that the reading is correct
     # The last reading is stored in the config file,
@@ -261,12 +276,12 @@ def push_to_domoticz(meterstand):
     r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
 
 
-###[ Main loop ]##############################################################   
+###[ Main loop ]################################################################   
 if __name__ == '__main__':
     # First, process command line arguments
     parser = argparse.ArgumentParser(
         description='Read water meter gauge by using PiCamera\n'
-                    'And processing through knn model'
+                    'And processing through template matching'
         )
     parser.add_argument('-q', 
         dest='loglevel', 
