@@ -19,7 +19,7 @@ import os
 
 ###[ Start logger ]#############################################################
 # Logging, normal logging is CRITICAL
-LOGLEVEL = logging.DEBUG
+LOGLEVEL = logging.INFO
 logging.basicConfig(level=LOGLEVEL)
 
 
@@ -67,7 +67,7 @@ def capture_image():
 
             camera.exposure_mode = "verylong"
 
-            logging.debug("Going to sleep for 20 sec...")
+            logging.info("Going to sleep for 20 sec...")
             time.sleep(20)
 
             logging.debug("... delay done, Capturing image")
@@ -80,7 +80,7 @@ def capture_image():
 
     logging.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    cv2.imwrite("/var/www/html/watermeter.png", image)
+    #cv2.imwrite("/var/www/html/watermeter.png", image)
 
     return gray 
 
@@ -176,11 +176,14 @@ def analyse_figures():
     # Load figures to be analyzed, minimize disk load
     figures = []
     for i in range(7):
+        logging.debug('Reading figure {}'.format(i))
         figure = cv2.imread('/var/www/html/{}.png'.format(i), 0)
         figures.append(figure)    
        
     # Loop over template folders [j], (template)match to figures [i]
-    for j in range(9):
+    for j in range(10):
+        logging.debug('Matching templates for {}'.format(j))
+        
         # Get files in template folder
         for filename in os.listdir('/home/pi/watermeter/{}/'.format(j)):
             # Only process png files
@@ -204,8 +207,8 @@ def analyse_figures():
                         max_score[i] = score
                         prediction[i] = j
 
-    logging.debug('Prediction : {}'.format(prediction))
-    logging.debug('Scores: {}'.format(max_score))
+    logging.info('Prediction : {}'.format(prediction))
+    logging.info('Scores: {}'.format(max_score))
         
     # Convert list into number,
     # Also check for bad matched numbers
@@ -221,7 +224,12 @@ def analyse_figures():
                     figures[i])
     
     logging.debug('Meterstand: {:7.2f}'.format(meterstand))
-
+    
+    # Catch unreliable reading
+    if min(max_score) < 0.6:
+        logging.error('Prediction accuracy too low, skipping measurement')
+        return 0
+    
     return meterstand
 
 
@@ -241,7 +249,7 @@ def validate(meterstand, forced):
         last_measurement))
     
     if ((meterstand >= last_measurement) and 
-       ((meterstand - last_measurement) < 5)) or forced:
+       ((meterstand - last_measurement) < 0.5)) or forced:
         # Value is accepted
         if forced:
             logging.debug('Measurement will be accepted anyway')
@@ -253,14 +261,16 @@ def validate(meterstand, forced):
             config['meterstand']['laatste'] = '{:7.2f}'.format(meterstand)
             config.write(configfile)
         
-        return True
+        # Return new and validated value
+        return meterstand
     else:
         # Measurement deviates too much from last reading
         logging.error(
             'Measurement value is not OK: {:7.2f}, expected: {:7.2f}'.format(
                 meterstand, last_measurement))
-            
-        return False
+        
+        # Return last value    
+        return last_measurement
         
 
 ###[ Domoticz ]#################################################################   
@@ -274,12 +284,24 @@ def push_to_domoticz(meterstand):
                'svalue': '{:7.2f}'.format(meterstand),
                }
     r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
+
     payload = {'type': 'command',
                'param': 'udevice',
-               'idx': '43',
-               'svalue': '{:7.2f}'.format(meterstand),
+               'idx': '44',
+               'svalue': '{}'.format(1000*meterstand),
                }
     r = requests.get('http://192.168.178.11:8080/json.htm', params=payload)
+
+
+###[ InfluxDB ]#################################################################
+def push_to_influx(meterstand):
+    # Pushes gauge to influxdb
+    logging.debug('Pushing value to influx')
+    
+    data = 'watermeter watermeter={}\n'.format(meterstand)
+    result = requests.post(
+        url='http://192.168.178.15:8086/write?db=watermeter', 
+        data=data)
 
 
 ###[ Main loop ]################################################################   
@@ -290,10 +312,16 @@ if __name__ == '__main__':
                     'And processing through template matching'
         )
     parser.add_argument('-q', 
-        dest='loglevel', 
+        dest='loglevel_critical', 
         action='store_true',
         default=False,
-        help='Run quitly (logging.CRITICAL), default is logging.DEBUG'
+        help='Run quitly (logging.CRITICAL), default is logging.INFO'
+        )
+    parser.add_argument('-v', 
+        dest='loglevel_debug', 
+        action='store_true',
+        default=False,
+        help='Run verbose (logging.DEBUG), default is logging.INFO'
         )
     parser.add_argument('-f',
         dest='override',
@@ -309,8 +337,11 @@ if __name__ == '__main__':
         )
     args = parser.parse_args()
     
-    if args.loglevel:
+    if args.loglevel_critical:
         logging.getLogger().setLevel(logging.CRITICAL)
+        
+    if args.loglevel_debug:
+        logging.getLogger().setLevel(logging.DEBUG)
     
     if not(args.measure):
         logging.info("Grabbing picture from camera")
@@ -321,6 +352,11 @@ if __name__ == '__main__':
     logging.info("Analyzing picture")
     meterstand = analyse_figures()
     
-    if validate(meterstand, args.override):
-        logging.info("Pushing value to Domoticz")
-        push_to_domoticz(meterstand)
+    meterstand = validate(meterstand, args.override)
+    
+    logging.info("Pushing value to databases")
+    push_to_domoticz(meterstand)
+    push_to_influx(meterstand)
+        
+
+
