@@ -2,3 +2,5 @@
 *.ini
 .backup
 *.backup
+.Trash*
+learn/

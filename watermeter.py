@@ -61,26 +61,38 @@ def capture_image():
 
         with picamera.PiCamera() as camera:
             # v2: 3280x2464  3296x2464
+
+            # Here I tried to set the camera to "night mode" or something like that,
+            # but this caused the PiCamera to freeze...
+            # With the default settings the photo is of good enough qulity, keep
+            # it like it is for now...
             camera.resolution = (3280, 2464)
-            camera.sensor_mode=3
-            camera.framerate=0.17
 
-            camera.exposure_mode = "verylong"
+            for i in range(20, 0, -1):
+                logging.debug("Going to sleep for {} sec...".format(i))
+                time.sleep(1)
 
-            logging.info("Going to sleep for 20 sec...")
-            time.sleep(20)
+            camera.exposure_mode = "off"
 
             logging.debug("... delay done, Capturing image")
+            logging.debug("Allocate empty numpy array")
             image = np.empty((2464, 3296, 3), dtype=np.uint8)
+            logging.debug("Grabbing image")
             camera.capture(image, 'bgr')
+            logging.debug("Image grabbed")
+            camera.framerate=5
 
     except:
         logging.critical("Camera not available")
+        leds_off()
         quit(-1)
+
+    finally:
+        logging.debug("Camera closed")
 
     logging.debug("Convert to gray")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #cv2.imwrite("/var/www/html/watermeter.png", image)
+    cv2.imwrite("/var/www/html/watermeter.png", image)
 
     return gray 
 
@@ -122,8 +134,8 @@ def get_watermeter_numbers(img):
         cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
     #logging.debug('Writing ROI')
-    #cv2.imwrite("/var/www/html/roi.png", roi)
-    #cv2.imwrite('/var/www/html/otsu.png', otsu_img)
+    cv2.imwrite("/var/www/html/roi.png", roi)
+    cv2.imwrite('/var/www/html/otsu.png', otsu_img)
 
     logging.debug('Rotating image')
     angle = float(config['watermeter']['angle'])
@@ -207,15 +219,18 @@ def analyse_figures():
                         max_score[i] = score
                         prediction[i] = j
 
-    logging.info('Prediction : {}'.format(prediction))
-    logging.info('Scores: {}'.format(max_score))
-        
+    logging.debug('Prediction : {}'.format(prediction))
+    logging.debug('Scores: {}'.format(max_score))
+
+    # Calculate accuracy score
+    accuracy = calculate_accuracy(max_score)
+
     # Convert list into number,
     # Also check for bad matched numbers
     meterstand = 0.0
     for i in range(7):
         meterstand = meterstand + prediction[i] * 10 ** (4-i)
-        if max_score[i] < 0.9:
+        if max_score[i] < 0.8:
             # No good figure found, save it for analysis
             logging.warning('Bad matched figure found, saving for analysis...')
             cv2.imwrite(
@@ -223,7 +238,8 @@ def analyse_figures():
                     int(time.time()), i), 
                     figures[i])
     
-    logging.debug('Meterstand: {:7.2f}'.format(meterstand))
+    logging.info('Meterstand: {:7.2f}'.format(meterstand))
+    logging.info('Combined score: {}'.format(accuracy))
     
     # Catch unreliable reading
     if min(max_score) < 0.6:
@@ -231,6 +247,17 @@ def analyse_figures():
         return 0
     
     return meterstand
+
+
+###[ Calculate accuracy ]########################################################   
+def calculate_accuracy(scores):
+    # Calculate accuracy as one number between 0 and 1:
+    # Something like a r²: as the product of each score squared
+    result = 1
+    for i in scores:
+        result = result * i**2
+    
+    return result
 
 
 ###[ Validate  reading ]########################################################   
